@@ -29,24 +29,6 @@ KOREAN_CITIES = [
     "Changwon,KR", "Jeju,KR", "Pohang,KR", "Gimhae,KR", "Chuncheon,KR"
 ]
 
-# Table name
-TABLE_NAME = "korea_weather"
-
-# Schema definition for the table
-WEATHER_SCHEMA = {
-    "city": "VARCHAR",
-    "country": "VARCHAR",
-    "temperature": "DOUBLE",
-    "feels_like": "DOUBLE",
-    "humidity": "INTEGER",
-    "pressure": "INTEGER",
-    "weather": "VARCHAR",
-    "weather_code": "INTEGER",
-    "wind_speed": "DOUBLE",
-    "timestamp": "VARCHAR",
-    "date_id": "VARCHAR"
-}
-
 class WeatherAPIClient:
     """Client for the OpenWeather API"""
     
@@ -161,9 +143,6 @@ def insert_korea_weather_daily(date_id: str):
         f"date_id: {date_id}"
     )
     
-    # Get database and table configuration
-    database = "analytics"
-    delete_condition = f"date_id = '{date_id}'"
     
     # Fetch weather data for Korean cities
     weather_client = WeatherAPIClient()
@@ -188,6 +167,26 @@ def insert_korea_weather_daily(date_id: str):
     
     # Convert to pandas DataFrame
     df = pd.DataFrame(processed_data)
+    # Get database and table configuration
+    database = "analytics"
+    delete_condition = f"date_id = '{date_id}'"
+    # Table name
+    TABLE_NAME = "korea_weather"
+
+    # Schema definition for the table
+    WEATHER_SCHEMA = {
+        "city": "VARCHAR",
+        "country": "VARCHAR",
+        "temperature": "DOUBLE",
+        "feels_like": "DOUBLE",
+        "humidity": "INTEGER",
+        "pressure": "INTEGER",
+        "weather": "VARCHAR",
+        "weather_code": "INTEGER",
+        "wind_speed": "DOUBLE",
+        "timestamp": "VARCHAR",
+        "date_id": "VARCHAR"
+    }
     
     # Use the DuckDB Iceberg function to delete and insert data
     duck_db_iceberg_delete_and_insert(
