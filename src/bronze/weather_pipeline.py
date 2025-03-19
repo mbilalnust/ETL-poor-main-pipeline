@@ -1,19 +1,25 @@
 import os
 import json
+import time
 import requests
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 from pathlib import Path
+# NOTE: The following packages need to be installed:
+#   pip install duckdb pandas pyarrow
+import pandas as pd  # type: ignore
 
+from utils.config import get_s3_path, get_iceberg_config
+from utils.duckdb_iceberg_utils import duck_db_iceberg_delete_and_insert
 
 # Load environment variables
 load_dotenv()
 
 # Configure output paths
-DATA_DIR = os.getenv("DATA_DIR", "/data")
+DATA_DIR = os.getenv("DATA_DIR", "./data")
 RAW_DATA_DIR = f"{DATA_DIR}/raw"
-OUTPUT_FILE_PREFIX = "weather_data_"
+OUTPUT_FILE_PREFIX = "bronze_korea_weather_"
 
 # List of major Korean cities
 KOREAN_CITIES = [
@@ -23,6 +29,23 @@ KOREAN_CITIES = [
     "Changwon,KR", "Jeju,KR", "Pohang,KR", "Gimhae,KR", "Chuncheon,KR"
 ]
 
+# Table name
+TABLE_NAME = "korea_weather"
+
+# Schema definition for the table
+WEATHER_SCHEMA = {
+    "city": "VARCHAR",
+    "country": "VARCHAR",
+    "temperature": "DOUBLE",
+    "feels_like": "DOUBLE",
+    "humidity": "INTEGER",
+    "pressure": "INTEGER",
+    "weather": "VARCHAR",
+    "weather_code": "INTEGER",
+    "wind_speed": "DOUBLE",
+    "timestamp": "VARCHAR",
+    "date_id": "VARCHAR"
+}
 
 class WeatherAPIClient:
     """Client for the OpenWeather API"""
@@ -125,74 +148,69 @@ def ensure_dir_exists(directory: str) -> None:
     Path(directory).mkdir(parents=True, exist_ok=True)
 
 
-def run_weather_data_pipeline(
-    cities: List[str],
-    output_dir: Optional[str] = None,
-    date_id: Optional[str] = None
-) -> str:
+def insert_korea_weather_daily(date_id: str):
     """
-    Main pipeline function to collect current weather data
+    Process and insert Korean weather data for a specific date
     
     Args:
-        cities: List of cities to get weather data for
-        output_dir: Directory to save the output file
-        date_id: Date identifier in YYYY-MM-DD format (for Airflow integration)
-        
-    Returns:
-        Path to the output file
+        date_id: Date identifier in YYYY-MM-DD format
     """
-    # Setup output directory
-    if output_dir is None:
-        output_dir = RAW_DATA_DIR
+    print(
+        time.strftime("%H:%M:%S"),
+        "insert_korea_weather_daily starts",
+        f"date_id: {date_id}"
+    )
     
-    ensure_dir_exists(output_dir)
+    # Get database and table configuration
+    database = "analytics"
+    delete_condition = f"date_id = '{date_id}'"
     
-    # Use provided date_id or generate from current date
-    if date_id is None:
-        date_id = datetime.now().strftime("%Y-%m-%d")
-    
-    # Generate output filename with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_file = f"{output_dir}/{OUTPUT_FILE_PREFIX}{timestamp}.json"
-    
-    if not cities or len(cities) == 0:
-        raise ValueError("City list is empty")
-    
-    print(f"Processing {len(cities)} cities for date_id: {date_id}...")
-    
-    # Fetch weather data for cities
+    # Fetch weather data for Korean cities
     weather_client = WeatherAPIClient()
-    weather_data = weather_client.get_batch_weather_data(cities)
+    weather_data = weather_client.get_batch_weather_data(KOREAN_CITIES)
     
-    # Extract relevant metrics and add date_id
+    # Process weather data
     processed_data = []
     for data in weather_data:
         metrics = weather_client.extract_weather_metrics(data)
         metrics['date_id'] = date_id
         processed_data.append(metrics)
     
-    # Save data to file
-    print(f"Saving data to {output_file}...")
-    with open(output_file, 'w') as f:
+    # Save data to local file for backup
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = RAW_DATA_DIR
+    ensure_dir_exists(output_dir)
+    local_file = f"{output_dir}/{OUTPUT_FILE_PREFIX}{timestamp}.json"
+    
+    print(f"Saving data to {local_file}...")
+    with open(local_file, 'w') as f:
         json.dump(processed_data, f, indent=2)
     
-    print(f"Successfully processed {len(processed_data)} cities")
-    return output_file
+    # Convert to pandas DataFrame
+    df = pd.DataFrame(processed_data)
+    
+    # Use the DuckDB Iceberg function to delete and insert data
+    duck_db_iceberg_delete_and_insert(
+        database=database,
+        table=TABLE_NAME,
+        delete_condition=delete_condition,
+        data=df,
+        partition_column_names=["date_id"],
+        schema=WEATHER_SCHEMA
+    )
+    
+    print(
+        time.strftime("%H:%M:%S"),
+        "insert_korea_weather_daily ends",
+        f"date_id: {date_id}"
+    )
 
 
 if __name__ == "__main__":
     try:
-        # Use a fixed list of 10 Korean cities
-        korean_cities = ["Seoul,KR", "Busan,KR", "Incheon,KR", "Daegu,KR", "Daejeon,KR", 
-                         "Gwangju,KR", "Suwon,KR", "Ulsan,KR", "Seongnam,KR", "Goyang,KR"]
-        print(f"Processing cities: {', '.join(korean_cities)}")
-        
-        # Use current date as date_id if not provided as an argument
-        # In production, this would be passed from Airflow
-        date_id = datetime.now().strftime("%Y-%m-%d")
-        
-        output_file = run_weather_data_pipeline(korean_cities, date_id=date_id)
-        print(f"Data pipeline completed successfully. Output saved to: {output_file}")
+        # Use today's date as default
+        today = datetime.now().strftime('%Y-%m-%d')
+        insert_korea_weather_daily(today)
     except Exception as e:
         print(f"Error in weather data pipeline: {e}")
         raise 
