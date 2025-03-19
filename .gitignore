@@ -59,3 +59,6 @@ pyproject.toml
 
 # Documentation
 docs/_build/
+
+# Data directories
+data/raw/
