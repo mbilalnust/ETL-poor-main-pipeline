@@ -10,7 +10,7 @@ from pathlib import Path
 #   pip install duckdb pandas pyarrow
 import pandas as pd  # type: ignore
 
-from utils.duckdb_iceberg_utils import duck_db_iceberg_delete_and_insert
+from utils.duckdb_utils import duck_db_parquet_delete_and_insert
 
 # Load environment variables
 load_dotenv()
@@ -23,9 +23,9 @@ OUTPUT_FILE_PREFIX = "bronze_korea_weather_"
 # List of major Korean cities
 KOREAN_CITIES = [
     "Seoul,KR", "Busan,KR", "Incheon,KR", "Daegu,KR", "Daejeon,KR", 
-    "Gwangju,KR", "Suwon,KR", "Ulsan,KR", "Seongnam,KR", "Goyang,KR",
-    "Bucheon,KR", "Cheongju,KR", "Jeonju,KR", "Ansan,KR", "Anyang,KR",
-    "Changwon,KR", "Jeju,KR", "Pohang,KR", "Gimhae,KR", "Chuncheon,KR"
+    # "Gwangju,KR", "Suwon,KR", "Ulsan,KR", "Seongnam,KR", "Goyang,KR",
+    # "Bucheon,KR", "Cheongju,KR", "Jeonju,KR", "Ansan,KR", "Anyang,KR",
+    # "Changwon,KR", "Jeju,KR", "Pohang,KR", "Gimhae,KR", "Chuncheon,KR"
 ]
 
 class WeatherAPIClient:
@@ -166,9 +166,9 @@ def insert_korea_weather_daily(date_id: str):
     
     # Convert to pandas DataFrame
     df = pd.DataFrame(processed_data)
-    # Get database and table configuration
+    
+    # Database and table configuration
     database = "analytics"
-    delete_condition = f"date_id = '{date_id}'"
     # Table name
     TABLE_NAME = "korea_weather"
 
@@ -187,13 +187,12 @@ def insert_korea_weather_daily(date_id: str):
         "date_id": "VARCHAR"
     }
     
-    # Use the DuckDB Iceberg function to delete and insert data
-    duck_db_iceberg_delete_and_insert(
+    # Save data to Parquet files
+    duck_db_parquet_delete_and_insert(
         database=database,
         table=TABLE_NAME,
-        delete_condition=delete_condition,
+        date_id=date_id,
         data=df,
-        partition_column_names=["date_id"],
         schema=WEATHER_SCHEMA
     )
     
