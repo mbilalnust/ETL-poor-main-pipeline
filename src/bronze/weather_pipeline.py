@@ -10,7 +10,6 @@ from pathlib import Path
 #   pip install duckdb pandas pyarrow
 import pandas as pd  # type: ignore
 
-from utils.config import get_s3_path, get_iceberg_config
 from utils.duckdb_iceberg_utils import duck_db_iceberg_delete_and_insert
 
 # Load environment variables
