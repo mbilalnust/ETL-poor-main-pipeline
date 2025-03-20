@@ -27,7 +27,7 @@ def get_s3_path(database: str, table: str) -> str:
 
 def get_aws_region() -> str:
     """Get AWS region from environment variables with default value"""
-    return os.getenv("AWS_REGION", "ap-northeast-2")
+    return os.getenv("AWS_REGION")
 
 def get_s3_client():
     """
