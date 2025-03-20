@@ -10,7 +10,7 @@ from utils.duckdb_utils import duck_db_parquet_delete_and_insert, get_duckdb_con
 # Load environment variables
 load_dotenv()
 
-def process_canada_weather(date_id: str) -> None:
+def process_us_weather(date_id: str) -> None:
     """
     Process world weather data to extract and transform Canadian cities data
     
@@ -19,7 +19,7 @@ def process_canada_weather(date_id: str) -> None:
     """
     print(
         time.strftime("%H:%M:%S"),
-        "process_canada_weather starts",
+        "process_us_weather starts",
         f"date_id: {date_id}"
     )
     
@@ -49,7 +49,7 @@ def process_canada_weather(date_id: str) -> None:
             ELSE 'Warm'
         END as temperature_category
     FROM '{source_s3_path}/date_id={date_id}/data.parquet'
-    WHERE country = 'CA'
+    WHERE country = 'US'
     """
     
     # Execute the query and get the result as a DataFrame
@@ -65,10 +65,10 @@ def process_canada_weather(date_id: str) -> None:
     
     # Database and table configuration
     database = "analytics"
-    table_name = "canada_weather"
+    table_name = "us_weather"
     
     # Schema definition for the table
-    CANADA_WEATHER_SCHEMA = {
+    US_WEATHER_SCHEMA = {
         "city": "VARCHAR",
         "country": "VARCHAR",
         "temperature": "DOUBLE",
@@ -87,12 +87,12 @@ def process_canada_weather(date_id: str) -> None:
         table=table_name,
         date_id=date_id,
         data=df,
-        schema=CANADA_WEATHER_SCHEMA
+        schema=US_WEATHER_SCHEMA
     )
     
     print(
         time.strftime("%H:%M:%S"),
-        "process_canada_weather ends",
+        "process_US_weather ends",
         f"date_id: {date_id}"
     )
 
@@ -101,7 +101,7 @@ if __name__ == "__main__":
     try:
         # Use today's date as default
         today = datetime.now().strftime('%Y-%m-%d')
-        process_canada_weather(today)
+        process_us_weather(today)
     except Exception as e:
-        print(f"Error in Canada weather data pipeline: {e}")
+        print(f"Error in us weather data pipeline: {e}")
         raise 
