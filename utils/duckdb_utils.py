@@ -1,15 +1,97 @@
 import os
 import pandas as pd  # type: ignore
 import duckdb  # type: ignore
-import boto3  # type: ignore
 from typing import Optional, List, Dict, Any, Union
 from pathlib import Path
 
-def get_s3_path(database: str, table: str) -> str:
-    """Get the S3 location for a table"""
-    # Use a specific bucket name from environment variables
-    bucket_name = os.getenv("S3_BUCKET_NAME", "data-lake")
-    return f"s3://{bucket_name}/{database}/{table}"
+from utils.config import get_s3_path, get_s3_client, get_glue_client, get_aws_region
+
+def get_duckdb_connection(database=':memory:'):
+    """
+    Create a DuckDB connection with AWS credentials configured
+    
+    Args:
+        database: Database path or ':memory:' for in-memory database
+        
+    Returns:
+        DuckDB connection with AWS credentials configured
+    """
+    con = duckdb.connect(database=database)
+    
+    # Set up AWS credentials for S3 access
+    con.execute(f"""
+        SET s3_region='{get_aws_region()}';
+        SET s3_access_key_id='{os.getenv("AWS_ACCESS_KEY_ID")}';
+        SET s3_secret_access_key='{os.getenv("AWS_SECRET_ACCESS_KEY")}';
+    """)
+    
+    return con
+
+def delete_partition_data(
+    database: str,
+    table: str,
+    date_id: str,
+    s3_partition_path: str
+) -> None:
+    """
+    Delete both S3 data and Glue partition metadata for a specific partition
+    
+    Args:
+        database: Glue database name
+        table: Table name
+        date_id: Date identifier for the partition to delete
+        s3_partition_path: Full S3 path to the partition
+    """
+    # Create AWS clients
+    s3_client = get_s3_client()
+    glue_client = get_glue_client()
+    
+    # 1. Delete S3 data
+    try:
+        # Parse the S3 URL to get bucket and prefix
+        s3_parts = s3_partition_path.replace("s3://", "").split("/", 1)
+        bucket = s3_parts[0]
+        prefix = s3_parts[1] if len(s3_parts) > 1 else ""
+        
+        print(f"Using S3 bucket: {bucket}, prefix: {prefix}")
+        
+        # List objects in the partition path
+        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+        
+        # If objects exist, delete them
+        if 'Contents' in response:
+            objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
+            print(f"Deleting existing data for {date_id} from S3...")
+            s3_client.delete_objects(
+                Bucket=bucket,
+                Delete={'Objects': objects_to_delete}
+            )
+    except Exception as e:
+        print(f"Warning: Error while deleting S3 data: {e}")
+    
+    # 2. Delete Glue partition
+    try:
+        # Check if table exists before trying to delete partition
+        try:
+            glue_client.get_table(DatabaseName=database, Name=table)
+            table_exists = True
+        except glue_client.exceptions.EntityNotFoundException:
+            table_exists = False
+            return  # No need to delete partition if table doesn't exist
+        
+        if table_exists:
+            print(f"Attempting to delete existing partition for date_id={date_id}")
+            try:
+                glue_client.delete_partition(
+                    DatabaseName=database,
+                    TableName=table,
+                    PartitionValues=[date_id]
+                )
+                print(f"Successfully deleted existing partition for date_id={date_id}")
+            except glue_client.exceptions.EntityNotFoundException:
+                print(f"No existing partition found for date_id={date_id}")
+    except Exception as e:
+        print(f"Warning: Error deleting Glue partition: {e}")
 
 def duck_db_parquet_delete_and_insert(
     database: str,
@@ -33,14 +115,7 @@ def duck_db_parquet_delete_and_insert(
         return
     
     # Create DuckDB connection
-    con = duckdb.connect(database=':memory:')
-    
-    # Set up AWS credentials for S3 access
-    con.execute(f"""
-        SET s3_region='{os.getenv("AWS_REGION", "ap-northeast-2")}';
-        SET s3_access_key_id='{os.getenv("AWS_ACCESS_KEY_ID")}';
-        SET s3_secret_access_key='{os.getenv("AWS_SECRET_ACCESS_KEY")}';
-    """)
+    con = get_duckdb_connection()
     
     # Define S3 paths
     s3_base_path = get_s3_path(database, table)
@@ -55,36 +130,13 @@ def duck_db_parquet_delete_and_insert(
     # Register the DataFrame in DuckDB
     con.register('data_to_insert', data)
     
-    # Delete existing partition if it exists
-    try:
-        # Create S3 client
-        s3_client = boto3.client(
-            's3',
-            region_name=os.getenv("AWS_REGION", "ap-northeast-2"),
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-        )
-        
-        # Parse the S3 URL to get bucket and prefix
-        s3_parts = s3_partition_path.replace("s3://", "").split("/", 1)
-        bucket = s3_parts[0]
-        prefix = s3_parts[1] if len(s3_parts) > 1 else ""
-        
-        print(f"Using S3 bucket: {bucket}, prefix: {prefix}")
-        
-        # List objects in the partition path
-        response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        
-        # If objects exist, delete them
-        if 'Contents' in response:
-            objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
-            print(f"Deleting existing data for {date_id} from S3...")
-            s3_client.delete_objects(
-                Bucket=bucket,
-                Delete={'Objects': objects_to_delete}
-            )
-    except Exception as e:
-        print(f"Warning: Error while checking/deleting existing data: {e}")
+    # Delete existing partition data (both S3 and Glue)
+    delete_partition_data(
+        database=database,
+        table=table,
+        date_id=date_id,
+        s3_partition_path=s3_partition_path
+    )
     
     # Save data to S3 in Parquet format
     print(f"Saving {len(data)} rows to {s3_data_path}")
@@ -107,12 +159,7 @@ def duck_db_parquet_delete_and_insert(
     # Register table in AWS Glue if not already registered
     try:
         # Create Glue client
-        glue_client = boto3.client(
-            'glue',
-            region_name=os.getenv("AWS_REGION", "ap-northeast-2"),
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY")
-        )
+        glue_client = get_glue_client()
         
         # Check if database exists, create if not
         try:
@@ -181,8 +228,8 @@ def duck_db_parquet_delete_and_insert(
                 }
             )
         
-        # Create or update partition in Glue
-        print(f"Creating/updating partition for date_id={date_id}")
+        # Create new partition in Glue
+        print(f"Creating partition for date_id={date_id}")
         glue_client.create_partition(
             DatabaseName=database,
             TableName=table,

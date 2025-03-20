@@ -10,22 +10,25 @@ from pathlib import Path
 #   pip install duckdb pandas pyarrow
 import pandas as pd  # type: ignore
 
-from utils.duckdb_utils import duck_db_parquet_delete_and_insert
+from utils.duckdb_utils import duck_db_parquet_delete_and_insert, get_duckdb_connection
 
 # Load environment variables
 load_dotenv()
 
-# Configure output paths
-DATA_DIR = os.getenv("DATA_DIR", "./data")
-RAW_DATA_DIR = f"{DATA_DIR}/raw"
-OUTPUT_FILE_PREFIX = "bronze_korea_weather_"
-
-# List of major Korean cities
-KOREAN_CITIES = [
-    "Seoul,KR", "Busan,KR", "Incheon,KR", "Daegu,KR", "Daejeon,KR", 
-    # "Gwangju,KR", "Suwon,KR", "Ulsan,KR", "Seongnam,KR", "Goyang,KR",
-    # "Bucheon,KR", "Cheongju,KR", "Jeonju,KR", "Ansan,KR", "Anyang,KR",
-    # "Changwon,KR", "Jeju,KR", "Pohang,KR", "Gimhae,KR", "Chuncheon,KR"
+# List of major world cities from 6 countries
+WORLD_CITIES = [
+    # United States (US)
+    "New York,US", "Los Angeles,US", "Chicago,US", "Houston,US", "Phoenix,US",
+    # United Kingdom (GB)
+    "London,GB", "Manchester,GB", "Birmingham,GB", "Glasgow,GB", "Liverpool,GB", 
+    # Japan (JP)
+    "Tokyo,JP", "Osaka,JP", "Yokohama,JP", "Nagoya,JP", "Sapporo,JP",
+    # Australia (AU)
+    "Sydney,AU", "Melbourne,AU", "Brisbane,AU", "Perth,AU", "Adelaide,AU",
+    # Germany (DE)
+    "Berlin,DE", "Munich,DE", "Hamburg,DE", "Frankfurt,DE", "Cologne,DE",
+    # Canada (CA)
+    "Toronto,CA", "Vancouver,CA", "Montreal,CA", "Calgary,CA", "Ottawa,CA"
 ]
 
 class WeatherAPIClient:
@@ -119,33 +122,23 @@ class WeatherAPIClient:
             return {}
 
 
-def ensure_dir_exists(directory: str) -> None:
+def insert_world_weather_daily(date_id: str):
     """
-    Ensure that a directory exists, creating it if necessary
-    
-    Args:
-        directory: Directory path to check/create
-    """
-    Path(directory).mkdir(parents=True, exist_ok=True)
-
-
-def insert_korea_weather_daily(date_id: str):
-    """
-    Process and insert Korean weather data for a specific date
+    Process and insert world weather data for a specific date
     
     Args:
         date_id: Date identifier in YYYY-MM-DD format
     """
     print(
         time.strftime("%H:%M:%S"),
-        "insert_korea_weather_daily starts",
+        "insert_world_weather_daily starts",
         f"date_id: {date_id}"
     )
     
     
-    # Fetch weather data for Korean cities
+    # Fetch weather data for world cities
     weather_client = WeatherAPIClient()
-    weather_data = weather_client.get_batch_weather_data(KOREAN_CITIES)
+    weather_data = weather_client.get_batch_weather_data(WORLD_CITIES)
     
     # Process weather data
     processed_data = []
@@ -154,23 +147,13 @@ def insert_korea_weather_daily(date_id: str):
         metrics['date_id'] = date_id
         processed_data.append(metrics)
     
-    # Save data to local file for backup
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_dir = RAW_DATA_DIR
-    ensure_dir_exists(output_dir)
-    local_file = f"{output_dir}/{OUTPUT_FILE_PREFIX}{timestamp}.json"
-    
-    print(f"Saving data to {local_file}...")
-    with open(local_file, 'w') as f:
-        json.dump(processed_data, f, indent=2)
-    
     # Convert to pandas DataFrame
     df = pd.DataFrame(processed_data)
     
     # Database and table configuration
     database = "analytics"
     # Table name
-    TABLE_NAME = "korea_weather"
+    TABLE_NAME = "world_weather"
 
     # Schema definition for the table
     WEATHER_SCHEMA = {
@@ -198,7 +181,7 @@ def insert_korea_weather_daily(date_id: str):
     
     print(
         time.strftime("%H:%M:%S"),
-        "insert_korea_weather_daily ends",
+        "insert_world_weather_daily ends",
         f"date_id: {date_id}"
     )
 
@@ -207,7 +190,7 @@ if __name__ == "__main__":
     try:
         # Use today's date as default
         today = datetime.now().strftime('%Y-%m-%d')
-        insert_korea_weather_daily(today)
+        insert_world_weather_daily(today)
     except Exception as e:
         print(f"Error in weather data pipeline: {e}")
         raise 
