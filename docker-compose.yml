@@ -1,18 +1,18 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  postgres:
-    image: postgres:latest
-    container_name: weather-postgres
-    environment:
-      - POSTGRES_USER=weatheruser
-      - POSTGRES_PASSWORD=password123
-      - POSTGRES_DB=weather_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    restart: unless-stopped
-
-volumes:
-  postgres-data: 
+  weather_etl:
+    container_name: weather-etl
+    build:
+      context: .
+      args:
+        - IMAGE_TAG=${IMAGE_TAG:-latest}
+      dockerfile: Dockerfile
+    stdin_open: true
+    tty: true
+    image: ${DOCKERHUB_USERNAME:-yourusername}/weather-etl:${IMAGE_TAG:-latest}
+    working_dir: /app
+    env_file:
+      - .env
+    # Network mode to allow connecting to host's Docker network
+    network_mode: "host"

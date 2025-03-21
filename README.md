@@ -38,18 +38,15 @@ OPENWEATHER_API_KEY=your_api_key_here
 # AWS Credentials
 AWS_ACCESS_KEY_ID=your_aws_access_key
 AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=your_aws_region
 S3_BUCKET_NAME=your_bucket_name
-GLUE_CATALOG_NAME=your_glue_catalog
 
 # Database Connection
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=weatherdb
-DB_USER=postgres
-DB_PASSWORD=your_db_password
-
-# Data paths
-DATA_DIR=/data
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=weatheruser
+POSTGRES_PASSWORD=your_postgres_password
+POSTGRES_DB=weather_db
 ```
 
 3. Install dependencies:
@@ -71,19 +68,19 @@ docker build -t weather-etl .
 Run the bronze layer (data extraction):
 
 ```bash
-docker run -v $(pwd)/data:/data --env-file .env weather-etl python -m src.bronze.weather_data_pipeline
+docker run --env-file .env weather-etl python -m src.bronze.weather_data_pipeline
 ```
 
 Run the silver layer (transformation):
 
 ```bash
-docker run -v $(pwd)/data:/data --env-file .env weather-etl python -m src.silver.weather_transform_pipeline
+docker run --env-file .env weather-etl python -m src.silver.weather_transform_pipeline
 ```
 
 Run the gold layer (joining data):
 
 ```bash
-docker run -v $(pwd)/data:/data --env-file .env weather-etl python -m src.gold.city_weather_join_pipeline
+docker run --env-file .env weather-etl python -m src.gold.city_weather_join_pipeline
 ```
 
 ### Running without Docker
