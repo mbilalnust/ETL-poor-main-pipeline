@@ -16,3 +16,4 @@ services:
       - .env
     # Network mode to allow connecting to host's Docker network
     network_mode: "host"
+    
