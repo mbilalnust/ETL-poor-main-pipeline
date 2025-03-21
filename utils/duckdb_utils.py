@@ -252,3 +252,4 @@ def duck_db_parquet_delete_and_insert(
 
 # For backward compatibility
 duck_db_iceberg_delete_and_insert = duck_db_parquet_delete_and_insert 
+print("duck_db_parquet_delete_and_insert")
