@@ -62,3 +62,6 @@ docs/_build/
 
 # Data directories
 data/raw/
+
+# Environment variables
+.env

@@ -106,14 +106,40 @@ Run the gold layer (joining data):
 python -m src.gold.city_weather_join_pipeline
 ```
 
-## CI/CD Process
+## Docker and CI/CD Setup
 
-This project uses GitHub Actions for continuous integration and deployment:
+### Manual Docker Build and Push
 
-1. When any branch is pushed to GitHub, a GitHub Actions workflow is triggered
-2. The workflow builds a Docker image from the codebase
-3. After successful build, the image is pushed to Docker Hub
-4. Airflow repository pulls this image from Docker Hub for its scheduled workflows
+You can manually build and push the Docker image to Docker Hub with these commands:
+
+```bash
+# Build the image
+docker build -t your-dockerhub-username/weather-etl:latest .
+
+# Push to Docker Hub
+docker login
+docker push your-dockerhub-username/weather-etl:latest
+```
+
+### GitHub Actions CI/CD Pipeline
+
+This project includes a GitHub Actions workflow that automatically builds and pushes the Docker image to Docker Hub:
+
+1. **Set up secrets in GitHub repository:**
+   - Go to your repository on GitHub
+   - Navigate to Settings > Secrets and variables > Actions
+   - Add these repository secrets:
+     - `DOCKERHUB_USERNAME`: Your Docker Hub username
+     - `DOCKERHUB_TOKEN`: Your Docker Hub access token (create one at https://hub.docker.com/settings/security)
+
+2. **Automated builds:**
+   - Every push to `main` or `master` branch triggers a build and push to Docker Hub
+   - When you create a tag (e.g., v1.0.0), it creates a tagged Docker image
+   - Pull requests build the image but don't push it
+
+3. **Using in Airflow:**
+   - In your Airflow DAGs, reference the image as: `your-dockerhub-username/weather-etl:latest`
+   - For specific versions, use the tag: `your-dockerhub-username/weather-etl:v1.0.0`
 
 ## Integration with Airflow
 
