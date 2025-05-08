@@ -9,8 +9,7 @@ This project implements a cost-effective "poor man's ETL pipeline" for weather d
 - **Gold Layer**: Analytics-ready data loaded into PostgreSQL for serving applications
 
 ## Output
-![Data Pipeline Diagram]([https://github.com/mbilalnust/ETL-poor-main-pipeline/blob/main/1744553596425.jpeg?raw=true](https://github.com/mbilalnust/ETL-poor-main-pipeline/blob/main/1744553596425.jpeg)
-
+![Data Pipeline Diagram](https://github.com/mbilalnust/ETL-poor-main-pipeline/blob/main/1744553596425.jpeg?raw=true)
 ## Key Features
 
 - **Daily weather data ingestion** from OpenWeather API
