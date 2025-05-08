@@ -8,6 +8,9 @@ This project implements a cost-effective "poor man's ETL pipeline" for weather d
 - **Silver Layer**: Data transformation using DuckDB and storage back to S3 as Iceberg tables
 - **Gold Layer**: Analytics-ready data loaded into PostgreSQL for serving applications
 
+## Output
+![Data Pipeline Diagram]([https://github.com/mbilalnust/ETL-poor-main-pipeline/blob/main/1744553596425.jpeg?raw=true](https://github.com/mbilalnust/ETL-poor-main-pipeline/blob/main/1744553596425.jpeg)
+
 ## Key Features
 
 - **Daily weather data ingestion** from OpenWeather API
@@ -177,3 +180,4 @@ This project is designed as a "poor man's ETL pipeline" that can easily scale on
 - **Scale Storage**: S3 + Iceberg provides virtually unlimited scalable storage
 - **Add Data Sources**: The modular design allows for easy addition of new data sources
 - **Real-time Processing**: Can be extended to include streaming data with minimal changes 
+
