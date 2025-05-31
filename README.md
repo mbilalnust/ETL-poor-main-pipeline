@@ -180,3 +180,34 @@ This project is designed as a "poor man's ETL pipeline" that can easily scale on
 - **Add Data Sources**: The modular design allows for easy addition of new data sources
 - **Real-time Processing**: Can be extended to include streaming data with minimal changes 
 
+## Overall flow
++-----------------------+
+|      Analyst / BI     |
+|  (SQL tools, Notebooks)|
++-----------+-----------+
+            |
+            v
++-----------------------+
+|    Query Engine       |  <-- Spark, Presto, Trino, Athena (with Iceberg support)
++-----------------------+
+            |
+            v
++-----------------------+
+|    Metadata Catalog   |  <-- AWS Glue Catalog or Hive Metastore
+| - Table schemas       |
+| - Table locations     |
+| - Table ownership     |
++-----------+-----------+
+            |
+            v
++-----------------------+
+|    Iceberg Table      |
+| - Metadata files      |  <-- Tracks data files, partitions, snapshots, versions
+| - Data files (Parquet, ORC, etc.)  | <-- Stored in S3, HDFS, or other object storage
++-----------------------+
+            |
+            v
++-----------------------+
+|      Cloud Storage    |  <-- Amazon S3, Azure Blob, GCS
++-----------------------+
+
